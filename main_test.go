@@ -207,6 +207,40 @@ func TestChatHandlerRejectsUnknownFields(t *testing.T) {
 	assertJSONError(t, recorder, "invalid_request")
 }
 
+func TestChatHandlerRejectsInvalidMessageType(t *testing.T) {
+	testCases := []string{
+		`{"message":123}`,
+		`{"message":true}`,
+		`{"message":{}}`,
+		`{"message":[]}`,
+	}
+
+	for _, requestBody := range testCases {
+		request := httptest.NewRequest(
+			http.MethodPost,
+			"/api/chat",
+			strings.NewReader(requestBody),
+		)
+
+		request.Header.Set("Content-Type", "application/json")
+
+		recorder := httptest.NewRecorder()
+
+		chatHandler(recorder, request)
+
+		if recorder.Code != http.StatusBadRequest {
+			t.Errorf(
+				"request %s: expected status %d, got %d",
+				requestBody,
+				http.StatusBadRequest,
+				recorder.Code,
+			)
+		}
+
+		assertJSONError(t, recorder, "invalid_request")
+	}
+}
+
 func TestChatHandlerRejectsWrongContentType(t *testing.T) {
 	requestBody := `{"message":"What is Taekwondo?"}`
 
