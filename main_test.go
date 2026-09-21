@@ -98,6 +98,32 @@ func TestChatHandlerRejectsEmptyMessage(t *testing.T) {
 	assertJSONError(t, recorder, "empty_message")
 }
 
+func TestChatHandlerRejectsMissingMessage(t *testing.T) {
+	requestBody := `{}`
+
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/api/chat",
+		strings.NewReader(requestBody),
+	)
+
+	request.Header.Set("Content-Type", "application/json")
+
+	recorder := httptest.NewRecorder()
+
+	chatHandler(recorder, request)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf(
+			"expected status %d, got %d",
+			http.StatusBadRequest,
+			recorder.Code,
+		)
+	}
+
+	assertJSONError(t, recorder, "empty_message")
+}
+
 func TestChatHandlerRejectsLongMessage(t *testing.T) {
 	longMessage := strings.Repeat("A", 1001)
 
