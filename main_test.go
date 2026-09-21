@@ -152,6 +152,32 @@ func TestChatHandlerRejectsMalformedJSON(t *testing.T) {
 	assertJSONError(t, recorder, "invalid_request")
 }
 
+func TestChatHandlerRejectsTrailingJSON(t *testing.T) {
+	requestBody := `{"message":"What is Taekwondo?"}{"message":"Another message"}`
+
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/api/chat",
+		strings.NewReader(requestBody),
+	)
+
+	request.Header.Set("Content-Type", "application/json")
+
+	recorder := httptest.NewRecorder()
+
+	chatHandler(recorder, request)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf(
+			"expected status %d, got %d",
+			http.StatusBadRequest,
+			recorder.Code,
+		)
+	}
+
+	assertJSONError(t, recorder, "invalid_request")
+}
+
 func TestChatHandlerRejectsUnknownFields(t *testing.T) {
 	requestBody := `{
 		"message":"What is Taekwondo?",

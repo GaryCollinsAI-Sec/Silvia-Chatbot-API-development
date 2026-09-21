@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -89,6 +90,19 @@ func chatHandler(w http.ResponseWriter, r *http.Request) {
 
 	err := decoder.Decode(&request)
 	if err != nil {
+		writeJSONError(
+			w,
+			http.StatusBadRequest,
+			"invalid_request",
+		)
+		return
+	}
+
+	// Require exactly one JSON value in the request body.
+	var extra interface{}
+
+	err = decoder.Decode(&extra)
+	if err != io.EOF {
 		writeJSONError(
 			w,
 			http.StatusBadRequest,
