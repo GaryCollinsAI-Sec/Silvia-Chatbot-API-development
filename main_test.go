@@ -1,4 +1,3 @@
-
 package main
 
 import (
@@ -174,6 +173,42 @@ func TestChatHandlerRejectsMalformedJSON(t *testing.T) {
 			http.StatusBadRequest,
 			recorder.Code,
 		)
+	}
+
+	assertJSONError(t, recorder, "invalid_request")
+}
+
+func TestChatHandlerDoesNotExposeDecoderErrors(t *testing.T) {
+	requestBody := `{"message":`
+
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/api/chat",
+		strings.NewReader(requestBody),
+	)
+
+	request.Header.Set("Content-Type", "application/json")
+
+	recorder := httptest.NewRecorder()
+
+	chatHandler(recorder, request)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf(
+			"expected status %d, got %d",
+			http.StatusBadRequest,
+			recorder.Code,
+		)
+	}
+
+	body := recorder.Body.String()
+
+	if strings.Contains(body, "unexpected EOF") {
+		t.Fatalf("response exposed decoder error details: %s", body)
+	}
+
+	if strings.Contains(body, "json:") {
+		t.Fatalf("response exposed JSON decoder details: %s", body)
 	}
 
 	assertJSONError(t, recorder, "invalid_request")
@@ -437,4 +472,3 @@ func TestRouterIntegration(t *testing.T) {
 		t.Fatalf("expected approved CORS origin")
 	}
 }
-
