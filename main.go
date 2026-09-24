@@ -1,6 +1,8 @@
+
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -80,15 +82,37 @@ func chatHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Limit request body size
+	// Limit request body size.
 	r.Body = http.MaxBytesReader(w, r.Body, 4096)
+
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		writeJSONError(
+			w,
+			http.StatusBadRequest,
+			"invalid_request",
+		)
+		return
+	}
+
+	// Reject duplicate JSON object keys before decoding
+	// the request into the application model.
+	hasDuplicates, err := hasDuplicateJSONKeys(body)
+	if err != nil || hasDuplicates {
+		writeJSONError(
+			w,
+			http.StatusBadRequest,
+			"invalid_request",
+		)
+		return
+	}
 
 	var request chatbot.ChatRequest
 
-	decoder := json.NewDecoder(r.Body)
+	decoder := json.NewDecoder(bytes.NewReader(body))
 	decoder.DisallowUnknownFields()
 
-	err := decoder.Decode(&request)
+	err = decoder.Decode(&request)
 	if err != nil {
 		writeJSONError(
 			w,
@@ -140,3 +164,81 @@ func chatHandler(w http.ResponseWriter, r *http.Request) {
 
 	json.NewEncoder(w).Encode(response)
 }
+
+func hasDuplicateJSONKeys(data []byte) (bool, error) {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+
+	hasDuplicates, err := scanJSONValue(decoder)
+	if err != nil {
+		return false, err
+	}
+
+	return hasDuplicates, nil
+}
+
+func scanJSONValue(decoder *json.Decoder) (bool, error) {
+	token, err := decoder.Token()
+	if err != nil {
+		return false, err
+	}
+
+	switch value := token.(type) {
+	case json.Delim:
+		switch value {
+		case '{':
+			seenKeys := make(map[string]struct{})
+
+			for decoder.More() {
+				keyToken, err := decoder.Token()
+				if err != nil {
+					return false, err
+				}
+
+				key, ok := keyToken.(string)
+				if !ok {
+					return false, fmt.Errorf("invalid JSON object key")
+				}
+
+				if _, exists := seenKeys[key]; exists {
+					return true, nil
+				}
+
+				seenKeys[key] = struct{}{}
+
+				hasDuplicates, err := scanJSONValue(decoder)
+				if err != nil {
+					return false, err
+				}
+
+				if hasDuplicates {
+					return true, nil
+				}
+			}
+
+			_, err := decoder.Token()
+			if err != nil {
+				return false, err
+			}
+
+		case '[':
+			for decoder.More() {
+				hasDuplicates, err := scanJSONValue(decoder)
+				if err != nil {
+					return false, err
+				}
+
+				if hasDuplicates {
+					return true, nil
+				}
+			}
+
+			_, err := decoder.Token()
+			if err != nil {
+				return false, err
+			}
+		}
+	}
+
+	return false, nil
+}
+
