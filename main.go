@@ -1,4 +1,3 @@
-
 package main
 
 import (
@@ -32,9 +31,18 @@ func main() {
 	router.Get("/api/health", healthHandler)
 	router.With(rateLimiter.Middleware).Post("/api/chat", chatHandler)
 
+	server := &http.Server{
+		Addr:              ":8080",
+		Handler:           router,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      10 * time.Second,
+		IdleTimeout:       60 * time.Second,
+	}
+
 	fmt.Println("Silvia API running on http://localhost:8080")
 
-	err := http.ListenAndServe(":8080", router)
+	err := server.ListenAndServe()
 	if err != nil {
 		fmt.Println("Server error:", err)
 	}
@@ -82,7 +90,7 @@ func chatHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Limit request body size.
+	// Limit request body size
 	r.Body = http.MaxBytesReader(w, r.Body, 4096)
 
 	body, err := io.ReadAll(r.Body)
@@ -95,8 +103,6 @@ func chatHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Reject duplicate JSON object keys before decoding
-	// the request into the application model.
 	hasDuplicates, err := hasDuplicateJSONKeys(body)
 	if err != nil || hasDuplicates {
 		writeJSONError(
@@ -241,4 +247,3 @@ func scanJSONValue(decoder *json.Decoder) (bool, error) {
 
 	return false, nil
 }
-
